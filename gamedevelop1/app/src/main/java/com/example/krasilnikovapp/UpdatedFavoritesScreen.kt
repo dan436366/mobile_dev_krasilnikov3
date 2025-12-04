@@ -19,187 +19,245 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+sealed class FavoritesListItem {
+    object HeaderItem : FavoritesListItem()
+    data class CategoriesRowItem(val categories: List<Category>) : FavoritesListItem()
+    data class ProductItem(val product: Product) : FavoritesListItem()
+    object EmptyItem : FavoritesListItem()
+}
+
 @Composable
 fun FavoritesScreen(viewModel: MainViewModel) {
     val categories = viewModel.categories.value
     val favoriteProducts = viewModel.favoriteProducts.value
 
+    // Формуємо список елементів
+    val listItems = buildList {
+        add(FavoritesListItem.HeaderItem)
+
+        if (favoriteProducts.isEmpty()) {
+            add(FavoritesListItem.EmptyItem)
+        } else {
+            val halfIndex = favoriteProducts.size / 2
+            favoriteProducts.take(halfIndex).forEach { product ->
+                add(FavoritesListItem.ProductItem(product))
+            }
+
+            add(FavoritesListItem.CategoriesRowItem(categories))
+
+            favoriteProducts.drop(halfIndex).forEach { product ->
+                add(FavoritesListItem.ProductItem(product))
+            }
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(
+            top = 16.dp,
+            bottom = 100.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-
-        item {
-            Column {
-                Text(
-                    text = "⭐ Улюблене",
-                    fontSize = 32.sp,
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-
-                Text(
-                    text = "Тут зібрані ваші улюблені товари",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-            }
-        }
-
-        // горизонтальний список категорій
-        item {
-            Column {
-                Text(
-                    text = "Категорії",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    items(categories) { category ->
-                        CategoryItemHorizontal(
-                            category = category,
-                            onClick = { viewModel.selectCategory(category) }
-                        )
-                    }
+        items(
+            items = listItems,
+            key = { item ->
+                when (item) {
+                    is FavoritesListItem.CategoriesRowItem -> "categories_row"
+                    is FavoritesListItem.ProductItem -> "product_${item.product.id}"
+                    is FavoritesListItem.HeaderItem -> "header"
+                    is FavoritesListItem.EmptyItem -> "empty"
                 }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            }
+        ) { item ->
+            when (item) {
+                is FavoritesListItem.HeaderItem -> {
+                    HeaderSection(
+                        favoriteCount = favoriteProducts.size,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+                is FavoritesListItem.CategoriesRowItem -> {
+                    CategoriesHorizontalSection(
+                        categories = item.categories,
+                        onCategoryClick = { viewModel.selectCategory(it) }
+                    )
+                }
+                is FavoritesListItem.ProductItem -> {
+                    ProductCard(
+                        product = item.product,
+                        onRemoveClick = { viewModel.toggleFavorite(item.product) },
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+                is FavoritesListItem.EmptyItem -> {
+                    EmptyFavoritesSection(
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
             }
         }
+    }
+}
 
-        item {
+@Composable
+fun HeaderSection(
+    favoriteCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text(
-                text = "Улюблені товари (${favoriteProducts.size})",
-                fontSize = 18.sp,
+                text = "⭐",
+                fontSize = 32.sp
+            )
+            Text(
+                text = "Улюблене",
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
+                color = MaterialTheme.colorScheme.primary
             )
         }
 
-        // список порожній
-        if (favoriteProducts.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "📭",
-                            fontSize = 48.sp
-                        )
-                        Text(
-                            text = "Список улюблених порожній",
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        } else {
-            // товари у вертикальному списку
-            items(
-                items = favoriteProducts,
-                key = { product -> product.id }
-            ) { product ->
-                ProductItemVertical(
-                    product = product,
-                    onRemoveClick = { viewModel.toggleFavorite(product) }
+        Text(
+            text = "Оберіть категорію або переглядайте улюблені товари",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        if (favoriteCount > 0) {
+            Surface(
+                modifier = Modifier
+                    .padding(top = 12.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Text(
+                    text = "📦 $favoriteCount улюблених товарів",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
         }
     }
 }
 
-// горизонтальний товар
 @Composable
-fun CategoryItemHorizontal(
+fun CategoriesHorizontalSection(
+    categories: List<Category>,
+    onCategoryClick: (Category) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.padding(vertical = 8.dp)
+    ) {
+        items(
+            items = categories,
+            key = { it.id }
+        ) { category ->
+            CategoryCard(
+                category = category,
+                onClick = { onCategoryClick(category) }
+            )
+        }
+    }
+}
+
+@Composable
+fun CategoryCard(
     category: Category,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .width(140.dp)
-            .height(100.dp)
+            .width(150.dp)
+            .height(140.dp)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = category.icon,
-                fontSize = 36.sp,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
+            // Іконка в окремому блоці
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = category.icon,
+                    fontSize = 36.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Text(
                 text = category.name,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
+
             Text(
                 text = "${category.itemCount} товарів",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
             )
         }
     }
 }
 
-// вертикальний товар
 @Composable
-fun ProductItemVertical(
+fun ProductCard(
     product: Product,
-    onRemoveClick: () -> Unit
+    onRemoveClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp)
-            .padding(vertical = 4.dp),
+        modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // іконка товара
+            // Зображення товару
             Box(
                 modifier = Modifier
                     .size(80.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -208,49 +266,48 @@ fun ProductItemVertical(
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // товар
+            // Інформація про товар
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
                     .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // назва та опис
-                Column(
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
-                    Text(
-                        text = product.name,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = product.description,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2
-                    )
-                }
+                Text(
+                    text = product.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
 
-                // ціна та рейтинг
+                Text(
+                    text = product.description,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${product.price} ₴",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    // Ціна
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "${product.price} ₴",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
 
+                    // Рейтинг
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -264,23 +321,65 @@ fun ProductItemVertical(
                         Text(
                             text = product.rating.toString(),
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            // видалення
+            // Кнопка видалення
             IconButton(
                 onClick = onRemoveClick,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(40.dp),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Видалити з улюблених",
-                    tint = MaterialTheme.colorScheme.error
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun EmptyFavoritesSection(modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "🔭",
+                fontSize = 56.sp
+            )
+            Text(
+                text = "Список улюблених порожній",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Додайте товари, які вам подобаються",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
         }
     }
 }
